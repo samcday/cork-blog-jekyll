@@ -7,5 +7,7 @@
   },
   "license": "BSD",
   "dependencies": {
+    "yaml": "~0.2.3",
+    "discount": "~0.2.3"
   }
 }
