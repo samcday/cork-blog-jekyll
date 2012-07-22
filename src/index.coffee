@@ -25,7 +25,7 @@ class AnnexHandler
 		, cb
 	processFile: (file, cb) ->
 		self = @
-		return unless matches = regex.blogPost.exec file
+		return cb() unless matches = regex.blogPost.exec file
 		fs.readFile (@annex.pathTo file), "utf8", (err, data) ->
 			return cb err if err?
 			[date, slug] = matches[1..]
