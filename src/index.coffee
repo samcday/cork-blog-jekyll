@@ -10,38 +10,60 @@ regex =
 class AnnexHandler
 	constructor: (@annex) ->
 	init: (files, cb) ->
+		@annex.addFileHandler /\.(md|markdown)$/, @processPost
+		return cb()
+		###
 		self = @
 		@files = files
 		async.forEach @files, (file, cb) ->
 			return cb() unless matches = regex.blogPost.exec file
-			[date, slug] = matches[1..]
-			date = new Date date
-			fs.readFile (self.annex.pathTo file), "utf8", (err, data) ->
+			
+			
 				return cb err if err
-				matter = self.parseFrontMatter data
+				
 				date = matter.date or date
 				self.annex.addPost slug, matter.title or title, date, matter.categories, matter.tags
 				cb()
 		, cb
-	processFile: (file, cb) ->
+		###
+	processPost: (file, cb) =>
 		self = @
 		return cb() unless matches = regex.blogPost.exec file
+		[fileDate, slug] = matches[1..]
 		fs.readFile (@annex.pathTo file), "utf8", (err, data) ->
-			return cb err if err?
-			[date, slug] = matches[1..]
-			content = data.substring (data.indexOf "---\n", 1) + 4
-			blogContent = discount.parse content
-			{date} = metadata = self.annex.getPost slug
-			layout = self.annex.config.layout
-			outName = "#{date.getFullYear()}/#{date.getMonth()+1}/#{date.getDate()}/#{slug}/index.html"
-			self.annex.writePost slug, outName, layout, blogContent, cb
-	parseFrontMatter: (data) ->
-		return null unless (data.indexOf "---\n") is 0
+			[meta, content] = self._parsePostData data
+			meta.date = new Date fileDate unless meta.date
+			self.annex.blog.addPost slug, meta.title, meta.date, content, meta.categories, meta.tags
+			cb()
+	_parsePostData: (data) ->
+		return null unless data[0...4] is "---\n"
 		return null unless (end = data.indexOf "---\n", 1) > 0
-		raw = data.substring 4, end - 1
-		frontMatter = yaml.load raw
-		frontMatter.date = (new Date frontMatter.date) if frontMatter.date
-		return frontMatter
+
+		# Parse out and process the YAML front matter at the top first.
+		frontMatter = yaml.load data.substring 4, end - 1
+		meta = @_processFrontMatter frontMatter
+
+		# And now the post content that follows.
+		content = discount.parse data.substring end + 4
+
+		return [meta, content]
+	_processFrontMatter: (frontMatter) ->
+		meta = {}
+		meta.title = frontMatter.title
+		meta.date = (new Date frontMatter.date) if frontMatter.date
+		meta.layout = frontMatter.layout if frontMatter.layout
+		meta.published = frontMatter.published if frontMatter.published
+		if frontMatter.category
+			meta.categories = [frontMatter.category] if frontMatter.category
+		else if frontMatter.categories
+			{categories} = frontMatter
+			categories = categories.split " " if "string" is typeof categories
+			meta.categories = categories
+		if frontMatter.tags
+			{tags} = frontMatter
+			tags = tags.split " " if "string" is typeof tags
+			meta.tags = tags
+		return meta
 
 module.exports = (annex) ->
 	return (new AnnexHandler annex)
